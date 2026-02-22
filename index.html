@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚢 Gemi Takip — Canlı</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0a0e1a; --deep: #0d1526; --panel: #111827;
+    --border: #1e2d45; --accent: #00d4ff; --accent2: #0088cc;
+    --gold: #f0a500; --green: #00e676; --red: #ff4444;
+    --text: #c8d8f0; --muted: #4a6080;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--navy); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(0,136,204,0.06) 0%, transparent 50%);
+    pointer-events: none; z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  .header { text-align: center; margin-bottom: 20px; }
+  .header .icon { font-size: 2.2rem; display: block; margin-bottom: 6px; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  .header h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: 2px; color: #fff; text-transform: uppercase; }
+  .header p { font-size: 0.63rem; color: var(--muted); letter-spacing: 1px; margin-top: 4px; font-family: 'Space Mono', monospace; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,230,118,0.1); border: 1px solid rgba(0,230,118,0.3);
+    border-radius: 20px; padding: 4px 12px; font-size: 0.63rem;
+    color: var(--green); font-family: 'Space Mono', monospace; margin-top: 8px;
+  }
+  .live-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .card-title { font-size: 0.6rem; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 14px; }
+
+  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; background: var(--deep); border-radius: 10px; padding: 3px; }
+  .tab-btn { flex: 1; padding: 9px; border: none; border-radius: 8px; font-family: 'Syne', sans-serif; font-size: 0.78rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--muted); transition: all 0.2s; }
+  .tab-btn.active { background: var(--accent2); color: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .field { margin-bottom: 12px; }
+  label { display: block; font-size: 0.66rem; color: var(--muted); margin-bottom: 5px; letter-spacing: 1px; text-transform: uppercase; }
+  select {
+    width: 100%; background: var(--deep); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 11px 13px; font-size: 0.86rem;
+    font-family: 'Space Mono', monospace; outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none; appearance: none;
+  }
+  select:focus { border-color: var(--accent); }
+  select option { background: var(--deep); }
+  .row { display: flex; gap: 10px; }
+  .row .field { flex: 1; }
+  .arrow-divider { text-align: center; font-size: 1.4rem; color: var(--accent); margin: 2px 0 10px; }
+
+  .btn {
+    width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none; border-radius: 12px; color: #000; font-family: 'Syne', sans-serif;
+    font-size: 0.93rem; font-weight: 800; letter-spacing: 1px; cursor: pointer;
+    text-transform: uppercase; transition: all 0.2s; margin-top: 4px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-stop { background: linear-gradient(135deg, #991111, var(--red)); display: none; margin-top: 8px; }
+
+  .conn-bar { display: none; align-items: center; gap: 10px; background: var(--deep); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+  .conn-text { flex: 1; }
+  .conn-title { font-size: 0.78rem; color: #fff; font-weight: 700; }
+  .conn-sub { font-size: 0.6rem; color: var(--muted); font-family: 'Space Mono', monospace; margin-top: 2px; }
+  .conn-count { font-size: 1.4rem; font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; }
+
+  /* LOG - önemli hata mesajları için */
+  .log-box {
+    display: none; background: var(--deep); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; font-size: 0.63rem;
+    font-family: 'Space Mono', monospace; color: var(--muted);
+    max-height: 100px; overflow-y: auto; margin-bottom: 14px;
+  }
+  .log-line { margin-bottom: 3px; }
+  .log-line.ok { color: var(--green); }
+  .log-line.err { color: var(--red); }
+  .log-line.info { color: var(--accent); }
+  .log-line.warn { color: var(--gold); }
+
+  .stats-bar { display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .stat { flex: 1; min-width: 60px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 6px; text-align: center; }
+  .stat .num { font-size: 1.3rem; font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; line-height: 1; }
+  .stat .lbl { font-size: 0.54rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+
+  .filter-bar { display: none; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .filter-chip { white-space: nowrap; padding: 5px 13px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; cursor: pointer; border: 1px solid var(--border); color: var(--muted); background: transparent; transition: all 0.15s; font-family: 'Syne', sans-serif; }
+  .filter-chip.active { background: rgba(0,212,255,0.1); border-color: var(--accent); color: var(--accent); }
+
+  .ship-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; margin-bottom: 9px; cursor: pointer; transition: border-color 0.2s;
+    position: relative; overflow: hidden; animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .ship-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); border-radius: 3px 0 0 3px; }
+  .ship-card.yeni::before { background: var(--green); }
+  .ship-card.rotada-kart::before { background: var(--gold); }
+  .ship-card.expanded { border-color: var(--accent); }
+  .ship-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .ship-name { font-size: 0.9rem; font-weight: 700; color: #fff; }
+  .ship-mmsi { font-size: 0.62rem; color: var(--accent); font-family: 'Space Mono', monospace; margin-top: 2px; }
+  .ship-meta { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+  .badge { padding: 3px 9px; border-radius: 20px; font-size: 0.57rem; font-weight: 700; text-transform: uppercase; }
+  .badge-bulk { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+  .badge-move { background: rgba(0,230,118,0.1); color: var(--green); border: 1px solid rgba(0,230,118,0.2); }
+  .badge-stop { background: rgba(240,165,0,0.1); color: var(--gold); border: 1px solid rgba(240,165,0,0.2); }
+  .badge-new { background: rgba(0,230,118,0.15); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+  .badge-rotada { background: rgba(240,165,0,0.15); color: var(--gold); border: 1px solid rgba(240,165,0,0.3); }
+
+  .route-display { display: flex; align-items: center; gap: 6px; background: var(--deep); border-radius: 8px; padding: 8px 11px; margin-top: 8px; font-size: 0.67rem; font-family: 'Space Mono', monospace; }
+  .route-display .port { color: #fff; flex: 1; }
+  .route-display .arrow { color: var(--accent); }
+
+  .ship-details { display: none; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--border); }
+  .ship-card.expanded .ship-details { display: block; }
+  .detail-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(30,45,69,0.4); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { font-size: 0.59rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .detail-val { font-size: 0.72rem; color: var(--text); font-family: 'Space Mono', monospace; text-align: right; max-width: 65%; }
+  .detail-link { color: var(--accent) !important; cursor: pointer; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 0.78rem; font-family: 'Space Mono', monospace; line-height: 2.2; }
+  .empty-state .big { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+  .footer { text-align: center; margin-top: 30px; font-size: 0.58rem; color: var(--muted); font-family: 'Space Mono', monospace; line-height: 2; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--deep); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <span class="icon">🚢</span>
+    <h1>Gemi Takip</h1>
+    <p>GERÇEK ZAMANLI · AISStream.io</p>
+    <div class="live-badge"><div class="live-dot"></div>CANLI VERİ</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">▸ Rota Seçimi</div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="tabDegis('ulke',this)">🌍 Ülke → Ülke</button>
+      <button class="tab-btn" onclick="tabDegis('liman',this)">⚓ Liman → Liman</button>
+    </div>
+
+    <!-- ÜLKE MODU -->
+    <div class="tab-panel active" id="tab-ulke">
+      <div class="field">
+        <label>🛫 Çıkış Ülkesi</label>
+        <select id="cikisUlke">
+          <option value="TR">🇹🇷 Türkiye</option>
+          <option value="CN">🇨🇳 Çin</option>
+          <option value="JP">🇯🇵 Japonya</option>
+          <option value="KR">🇰🇷 Güney Kore</option>
+          <option value="SG">🇸🇬 Singapur</option>
+          <option value="IN">🇮🇳 Hindistan</option>
+          <option value="PK">🇵🇰 Pakistan</option>
+          <option value="MY">🇲🇾 Malezya</option>
+          <option value="ID">🇮🇩 Endonezya</option>
+          <option value="DE">🇩🇪 Almanya</option>
+          <option value="NL">🇳🇱 Hollanda</option>
+          <option value="BE">🇧🇪 Belçika</option>
+          <option value="GB">🇬🇧 İngiltere</option>
+          <option value="IT">🇮🇹 İtalya</option>
+          <option value="GR">🇬🇷 Yunanistan</option>
+          <option value="ES">🇪🇸 İspanya</option>
+          <option value="FR">🇫🇷 Fransa</option>
+          <option value="US">🇺🇸 Amerika</option>
+          <option value="BR">🇧🇷 Brezilya</option>
+          <option value="AU">🇦🇺 Avustralya</option>
+          <option value="EG">🇪🇬 Mısır</option>
+          <option value="ZA">🇿🇦 Güney Afrika</option>
+          <option value="AE">🇦🇪 BAE (Dubai)</option>
+          <option value="SA">🇸🇦 Suudi Arabistan</option>
+          <option value="KW">🇰🇼 Kuveyt</option>
+          <option value="QA">🇶🇦 Katar</option>
+          <option value="OM">🇴🇲 Umman</option>
+          <option value="IR">🇮🇷 İran</option>
+          <option value="IQ">🇮🇶 Irak</option>
+        </select>
+      </div>
+      <div class="arrow-divider">↓</div>
+      <div class="field">
+        <label>🛬 Varış Ülkesi</label>
+        <select id="varisUlke">
+          <option value="AE">🇦🇪 BAE (Dubai)</option>
+          <option value="TR">🇹🇷 Türkiye</option>
+          <option value="SA">🇸🇦 Suudi Arabistan</option>
+          <option value="CN">🇨🇳 Çin</option>
+          <option value="JP">🇯🇵 Japonya</option>
+          <option value="KR">🇰🇷 Güney Kore</option>
+          <option value="SG">🇸🇬 Singapur</option>
+          <option value="IN">🇮🇳 Hindistan</option>
+          <option value="DE">🇩🇪 Almanya</option>
+          <option value="NL">🇳🇱 Hollanda</option>
+          <option value="GB">🇬🇧 İngiltere</option>
+          <option value="IT">🇮🇹 İtalya</option>
+          <option value="GR">🇬🇷 Yunanistan</option>
+          <option value="US">🇺🇸 Amerika</option>
+          <option value="AU">🇦🇺 Avustralya</option>
+          <option value="KW">🇰🇼 Kuveyt</option>
+          <option value="QA">🇶🇦 Katar</option>
+          <option value="OM">🇴🇲 Umman</option>
+          <option value="EG">🇪🇬 Mısır</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- LİMAN MODU -->
+    <div class="tab-panel" id="tab-liman">
+      <div class="field">
+        <label>🛫 Çıkış Limanı</label>
+        <select id="cikisLiman">
+          <optgroup label="🇹🇷 Türkiye">
+            <option value="TRAMS">İstanbul (Ambarlı)</option>
+            <option value="TRMER">Mersin</option>
+            <option value="TRALP">İzmir (Aliağa)</option>
+            <option value="TRISK">İskenderun</option>
+            <option value="TRTBS">Trabzon</option>
+          </optgroup>
+          <optgroup label="🇨🇳 Çin">
+            <option value="CNSHA">Shanghai</option>
+            <option value="HKHKG">Hong Kong</option>
+            <option value="CNTAO">Qingdao</option>
+            <option value="CNTSN">Tianjin</option>
+            <option value="CNNGB">Ningbo</option>
+            <option value="CNSZX">Shenzhen</option>
+          </optgroup>
+          <optgroup label="🌏 Güneydoğu Asya">
+            <option value="SGSIN">Singapur</option>
+            <option value="MYPKG">Port Klang</option>
+            <option value="IDJKT">Jakarta</option>
+          </optgroup>
+          <optgroup label="🇮🇳 Hindistan">
+            <option value="INNSA">Mumbai (JNPT)</option>
+            <option value="INMAA">Chennai</option>
+            <option value="INMUN">Mundra</option>
+          </optgroup>
+          <optgroup label="🇪🇺 Avrupa">
+            <option value="DEHAM">Hamburg</option>
+            <option value="NLRTM">Rotterdam</option>
+            <option value="BEANR">Antwerp</option>
+            <option value="GRPIR">Piraeus</option>
+            <option value="ITGOA">Genova</option>
+          </optgroup>
+          <optgroup label="🌍 Körfez / Orta Doğu">
+            <option value="SADMM">Dammam</option>
+            <option value="SAJED">Jeddah</option>
+            <option value="KWKWI">Kuveyt</option>
+            <option value="QAHMD">Hamad Port</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="arrow-divider">↓</div>
+      <div class="field">
+        <label>🛬 Varış Limanı</label>
+        <select id="varisLiman">
+          <optgroup label="🇦🇪 BAE">
+            <option value="AEJEA">Jebel Ali (Dubai)</option>
+            <option value="AEAUH">Abu Dhabi</option>
+            <option value="AESHJ">Sharjah</option>
+          </optgroup>
+          <optgroup label="🇹🇷 Türkiye">
+            <option value="TRAMS">İstanbul (Ambarlı)</option>
+            <option value="TRMER">Mersin</option>
+            <option value="TRALP">İzmir</option>
+          </optgroup>
+          <optgroup label="🇸🇦 🇰🇼 🇶🇦 🇴🇲 Körfez">
+            <option value="SADMM">Dammam</option>
+            <option value="SAJED">Jeddah</option>
+            <option value="KWKWI">Kuveyt</option>
+            <option value="QAHMD">Hamad Port</option>
+            <option value="OMSOH">Salalah</option>
+          </optgroup>
+          <optgroup label="🇨🇳 Çin">
+            <option value="CNSHA">Shanghai</option>
+            <option value="HKHKG">Hong Kong</option>
+            <option value="CNTAO">Qingdao</option>
+          </optgroup>
+          <optgroup label="🇪🇺 Avrupa">
+            <option value="DEHAM">Hamburg</option>
+            <option value="NLRTM">Rotterdam</option>
+            <option value="GRPIR">Piraeus</option>
+          </optgroup>
+          <optgroup label="🇮🇳 🇵🇰 Güney Asya">
+            <option value="INNSA">Mumbai</option>
+            <option value="PKKAR">Karachi</option>
+          </optgroup>
+          <optgroup label="🇪🇬 🇿🇦 Afrika">
+            <option value="EGPSD">Port Said</option>
+            <option value="EGALX">Alexandria</option>
+            <option value="ZADUR">Durban</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="field">
+        <label>🚢 Gemi Tipi</label>
+        <select id="gemiTipi">
+          <option value="bulk">Kuru Yük</option>
+          <option value="tanker">Tanker</option>
+          <option value="all">Tüm Kargo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>📊 Max Gemi</label>
+        <select id="maxGemi">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" onclick="baglan()" id="baglanBtn">📡 &nbsp;CANLI BAĞLANTI BAŞLAT</button>
+    <button class="btn btn-stop" onclick="baglantiKes()" id="kesBtn">⛔ &nbsp;BAĞLANTIYI KES</button>
+  </div>
+
+  <!-- BAĞLANTI DURUMU -->
+  <div class="conn-bar" id="connBar">
+    <div style="font-size:1.1rem">📡</div>
+    <div class="conn-text">
+      <div class="conn-title" id="connTitle">Bağlanıyor...</div>
+      <div class="conn-sub" id="connSub">AISStream.io WebSocket</div>
+    </div>
+    <div class="conn-count" id="connCount">0</div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-box" id="logBox"></div>
+
+  <!-- İSTATİSTİK -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat"><div class="num" id="toplamSayi">0</div><div class="lbl">Toplam</div></div>
+    <div class="stat"><div class="num" id="hareketSayi">0</div><div class="lbl">Hareket</div></div>
+    <div class="stat"><div class="num" id="durgunSayi">0</div><div class="lbl">Demirli</div></div>
+    <div class="stat"><div class="num" id="rotadaSayi">0</div><div class="lbl">🎯 Rotada</div></div>
+  </div>
+
+  <!-- FİLTRE -->
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-chip active" onclick="filtrele('all',this)">🌐 Tümü</button>
+    <button class="filter-chip" onclick="filtrele('underway',this)">⚡ Hareket</button>
+    <button class="filter-chip" onclick="filtrele('moored',this)">⚓ Demirli</button>
+    <button class="filter-chip" onclick="filtrele('rotada',this)">🎯 Rotada</button>
+  </div>
+
+  <!-- GEMİ LİSTESİ -->
+  <div id="gemiListesi">
+    <div class="empty-state">
+      <span class="big">🌊</span>
+      Rotayı seç ve başlat<br>Gerçek gemiler akacak
+    </div>
+  </div>
+
+  <div class="footer">
+    KAYNAK: AISStream.io · GERÇEK ZAMANLI AIS<br>
+    SON GÜNCELLEME: <span id="guncellemeZamani">—</span>
+  </div>
+</div>
+
+<script>
+// ─── SABİTLER ───
+const API_KEY = 'ea8b26c488a02ed5d889154ce62c2cd3c63bf226';
+
+// Ülke bounding box'ları [SW_lat, SW_lon], [NE_lat, NE_lon]
+const ULKE_BBOX = {
+  TR: [[35.8,25.6],[42.1,44.8]],
+  AE: [[22.6,51.0],[26.1,56.4]],
+  SA: [[16.0,34.5],[32.0,55.7]],
+  CN: [[18.0,108.0],[53.0,135.0]],
+  JP: [[24.0,122.0],[46.0,146.0]],
+  KR: [[33.0,124.0],[38.5,130.0]],
+  SG: [[1.1,103.5],[1.5,104.1]],
+  IN: [[6.0,68.0],[37.0,97.0]],
+  PK: [[23.0,60.0],[37.0,77.0]],
+  MY: [[1.0,99.5],[7.5,119.0]],
+  ID: [[-8.5,95.0],[6.0,141.0]],
+  DE: [[53.0,6.5],[55.1,15.0]],
+  NL: [[51.2,3.2],[53.6,7.2]],
+  BE: [[50.7,2.5],[51.5,5.9]],
+  GB: [[49.9,-8.0],[60.9,2.0]],
+  IT: [[37.0,6.6],[47.1,18.5]],
+  ES: [[35.9,-9.3],[43.8,4.3]],
+  GR: [[34.8,19.4],[42.0,28.2]],
+  FR: [[41.3,-5.2],[51.1,9.7]],
+  US: [[24.0,-125.0],[50.0,-65.0]],
+  BR: [[-33.7,-73.0],[5.3,-28.0]],
+  AU: [[-43.6,113.0],[-10.0,154.0]],
+  EG: [[22.0,24.7],[31.7,37.0]],
+  ZA: [[-35.0,16.3],[-22.1,33.0]],
+  KW: [[28.5,47.0],[30.1,48.5]],
+  QA: [[24.5,50.5],[26.3,51.7]],
+  OM: [[16.5,51.8],[26.4,59.8]],
+  IR: [[25.0,44.0],[39.8,63.3]],
+  IQ: [[29.0,46.0],[37.5,48.7]],
+};
+
+// Liman bounding box'ları
+const LIMAN_BBOX = {
+  TRAMS:[[40.9,28.5],[41.2,29.0]], TRMER:[[36.5,34.3],[36.9,34.8]],
+  TRALP:[[38.6,26.8],[38.9,27.1]], TRISK:[[36.4,36.0],[36.7,36.4]],
+  TRTBS:[[40.9,39.5],[41.1,39.9]], AEJEA:[[24.8,54.9],[25.2,55.3]],
+  AEAUH:[[24.3,54.2],[24.7,54.6]], AESHJ:[[25.2,55.2],[25.5,55.6]],
+  SADMM:[[26.2,49.9],[26.6,50.3]], SAJED:[[21.3,39.0],[21.7,39.4]],
+  SAYNB:[[23.9,37.9],[24.3,38.3]], KWKWI:[[29.2,47.8],[29.6,48.2]],
+  QAHMD:[[24.8,51.4],[25.2,51.8]], OMSOH:[[16.8,53.8],[17.2,54.2]],
+  OMMCT:[[23.4,58.3],[23.8,58.7]], CNSHA:[[30.7,121.2],[31.6,122.1]],
+  HKHKG:[[22.1,113.9],[22.5,114.4]], CNTAO:[[35.9,120.1],[36.4,120.6]],
+  CNTSN:[[38.8,117.5],[39.3,118.0]], CNNGB:[[29.7,121.4],[30.2,121.9]],
+  CNSZX:[[22.4,113.7],[22.9,114.2]], SGSIN:[[1.1,103.6],[1.5,104.1]],
+  MYPKG:[[2.8,101.1],[3.2,101.5]], IDJKT:[[-6.3,106.6],[-5.8,107.1]],
+  INNSA:[[18.8,72.7],[19.3,73.2]], INMAA:[[12.8,80.0],[13.3,80.5]],
+  INMUN:[[22.5,69.8],[23.0,70.3]], DEHAM:[[53.3,9.7],[53.8,10.2]],
+  NLRTM:[[51.7,4.0],[52.2,4.5]], BEANR:[[51.0,4.2],[51.5,4.7]],
+  GRPIR:[[37.7,23.4],[38.2,23.9]], ITGOA:[[44.1,8.7],[44.6,9.2]],
+  PKKAR:[[24.6,66.8],[25.0,67.3]], EGPSD:[[31.1,32.1],[31.5,32.5]],
+  EGALX:[[30.9,29.7],[31.4,30.2]], ZADUR:[[-30.0,30.8],[-29.5,31.3]],
+};
+
+// Varış limanı keyword eşleştirme
+const VARIS_KEYWORDS = {
+  AE: ['JEBEL ALI','DUBAI','ABU DHABI','SHARJAH','ZAYED','RUWAIS','UAE','AEJEA','AEAUH'],
+  SA: ['DAMMAM','JEDDAH','YANBU','JUBAIL','JIZAN','SAUDI'],
+  TR: ['ISTANBUL','MERSIN','IZMIR','AMBARI','ISKENDERUN','TRABZON','SAMSUN','TURKEY','TURKIYE'],
+  CN: ['SHANGHAI','QINGDAO','TIANJIN','GUANGZHOU','NINGBO','SHENZHEN','DALIAN','XIAMEN','CHINA'],
+  JP: ['TOKYO','YOKOHAMA','OSAKA','NAGOYA','KOBE','JAPAN'],
+  KR: ['BUSAN','INCHEON','GWANGYANG','KOREA'],
+  SG: ['SINGAPORE','SINGAPOUR'],
+  IN: ['MUMBAI','NHAVA SHEVA','JNPT','CHENNAI','MUNDRA','INDIA','KANDLA'],
+  DE: ['HAMBURG','GERMANY'],
+  NL: ['ROTTERDAM','AMSTERDAM'],
+  GB: ['FELIXSTOWE','SOUTHAMPTON','LONDON'],
+  IT: ['GENOVA','GENOA','TRIESTE','NAPOLI','NAPLES'],
+  GR: ['PIRAEUS','PIREUS','THESSALONIKI'],
+  KW: ['KUWAIT','SHUAIBA'],
+  QA: ['HAMAD','DOHA','QATAR'],
+  OM: ['SALALAH','MUSCAT','SOHAR'],
+  EG: ['PORT SAID','ALEXANDRIA','DAMIETTA','EGYPT','SUEZ'],
+  AEJEA: ['JEBEL ALI','DUBAI','JEBEL'],
+  AEAUH: ['ABU DHABI','ZAYED'],
+  AESHJ: ['SHARJAH'],
+  OMSOH: ['SALALAH'],
+  TRAMS: ['AMBARLI','ISTANBUL','AMBARI'],
+  TRMER: ['MERSIN'],
+};
+
+let ws = null;
+let gemiler = {};
+let aktifFiltre = 'all';
+let aktifKart = null;
+let aktifTab = 'ulke';
+let rotaHedef = {};
+
+function tabDegis(tab, el) {
+  aktifTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+function baglan() {
+  let cikisKod, varisKod, bbox1, bbox2;
+
+  if (aktifTab === 'ulke') {
+    cikisKod = document.getElementById('cikisUlke').value;
+    varisKod = document.getElementById('varisUlke').value;
+    if (cikisKod === varisKod) { alert('Çıkış ve varış farklı olmalı!'); return; }
+    bbox1 = ULKE_BBOX[cikisKod];
+    bbox2 = ULKE_BBOX[varisKod];
+  } else {
+    cikisKod = document.getElementById('cikisLiman').value;
+    varisKod = document.getElementById('varisLiman').value;
+    bbox1 = LIMAN_BBOX[cikisKod];
+    bbox2 = LIMAN_BBOX[varisKod];
+  }
+
+  if (!bbox1 || !bbox2) { alert('Bu rota için koordinat bulunamadı!'); return; }
+
+  rotaHedef = { cikis: cikisKod, varis: varisKod };
+  gemiler = {};
+
+  // Bounding box listesi — çıkış + varış + güzergah bölgeleri
+  const boundingBoxes = [bbox1, bbox2];
+
+  // Güzergah mantığı — araya geçiş bölgeleri ekle
+  const guzergah = guzergahBul(cikisKod, varisKod);
+  guzergah.forEach(bb => boundingBoxes.push(bb));
+
+  document.getElementById('baglanBtn').style.display = 'none';
+  document.getElementById('kesBtn').style.display = 'block';
+  document.getElementById('connBar').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('filterBar').style.display = 'flex';
+
+  log(`Bağlantı başlıyor: ${cikisKod} → ${varisKod}`, 'info');
+  log(`${boundingBoxes.length} bölge izlenecek`, 'info');
+
+  ws = new WebSocket('wss://stream.aisstream.io/v0/stream');
+
+  ws.onopen = () => {
+    document.getElementById('connTitle').textContent = 'Bağlı — Veri Akıyor';
+    document.getElementById('connSub').textContent = `${cikisKod} → ${varisKod} · ${boundingBoxes.length} bölge`;
+    log('✓ WebSocket bağlandı', 'ok');
+
+    // Türkiye-Dubai için tüm güzergahı kapsayan tek büyük bbox gönder
+    // Bu daha güvenilir çalışıyor
+    const abonelik = {
+      APIKey: API_KEY,
+      BoundingBoxes: boundingBoxes,
+      FilterMessageTypes: ["PositionReport", "ShipStaticData"]
+    };
+
+    log(`📡 ${boundingBoxes.length} bölge, abonelik gönderiliyor...`, 'info');
+    ws.send(JSON.stringify(abonelik));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      // API hata mesajı mı?
+      if (data.error) {
+        log(`❌ API Hatası: ${data.error}`, 'err');
+        return;
+      }
+      if (data.message) {
+        log(`⚠️ API: ${data.message}`, 'warn');
+        return;
+      }
+
+      // İlk mesajları logla
+      if (!window._mc) window._mc = 0;
+      if (window._mc < 5) {
+        log(`📦 ${data.MessageType || JSON.stringify(data).slice(0,80)}`, 'ok');
+        window._mc++;
+      }
+
+      islemYap(data);
+    } catch(e) {
+      log(`Parse hatası: ${e.message}`, 'err');
+    }
+  };
+
+  ws.onerror = (e) => {
+    log('❌ WebSocket bağlantı hatası!', 'err');
+    log('Tarayıcı konsolunu kontrol et (F12)', 'warn');
+    document.getElementById('connTitle').textContent = 'Bağlantı Hatası';
+  };
+
+  ws.onclose = (e) => {
+    log(`Bağlantı kapandı (kod: ${e.code})`, 'err');
+    if (e.code === 1008) log('❌ API anahtarı geçersiz!', 'err');
+    document.getElementById('connTitle').textContent = 'Bağlantı Kesildi';
+    // Otomatik yeniden bağlan (5 saniye sonra)
+    setTimeout(() => {
+      if (document.getElementById('kesBtn').style.display !== 'none') {
+        log('🔄 Yeniden bağlanıyor...', 'info');
+        baglan();
+      }
+    }, 5000);
+  };
+}
+
+function islemYap(data) {
+  const msgType = data.MessageType;
+  const maxGemi = parseInt(document.getElementById('maxGemi').value);
+  const gemiTipi = document.getElementById('gemiTipi').value;
+
+  if (msgType === 'PositionReport') {
+    const msg = data.Message?.PositionReport;
+    const meta = data.MetaData;
+    if (!msg || !meta) return;
+
+    const mmsi = String(meta.MMSI || meta.MMSI_String || '');
+    if (!mmsi) return;
+
+    const hiz = parseFloat(msg.Sog || 0).toFixed(1);
+    const nav = msg.NavigationalStatus ?? 0;
+    const durum = (nav === 1 || nav === 5) ? 'moored' : 'underway';
+
+    if (gemiler[mmsi]) {
+      // Mevcut gemiyi güncelle
+      gemiler[mmsi].hiz = hiz;
+      gemiler[mmsi].durum = durum;
+      gemiler[mmsi].lat = parseFloat(msg.Latitude || meta.latitude || 0).toFixed(4);
+      gemiler[mmsi].lon = parseFloat(msg.Longitude || meta.longitude || 0).toFixed(4);
+      gemiler[mmsi].sonGuncelleme = new Date();
+    } else {
+      // Yeni gemi ekle
+      if (Object.keys(gemiler).length >= maxGemi) return;
+
+      const gemAd = (meta.ShipName || '').trim() || `GEMİ-${mmsi.slice(-4)}`;
+
+      gemiler[mmsi] = {
+        mmsi,
+        ad: gemAd,
+        imo: '-',
+        bayrak: '',
+        tip: '-',
+        hiz, durum,
+        hedef: '-',
+        lat: parseFloat(msg.Latitude || meta.latitude || 0).toFixed(4),
+        lon: parseFloat(msg.Longitude || meta.longitude || 0).toFixed(4),
+        eklenme: new Date(),
+        sonGuncelleme: new Date(),
+        yeni: true,
+        rotada: false,
+        shipTypeCode: 0,
+      };
+
+      setTimeout(() => { if (gemiler[mmsi]) gemiler[mmsi].yeni = false; }, 30000);
+      log(`🚢 ${gemAd} (${mmsi})`, 'ok');
+    }
+
+    listeGuncelle();
+  }
+
+  if (msgType === 'ShipStaticData') {
+    const msg = data.Message?.ShipStaticData;
+    const meta = data.MetaData;
+    if (!msg || !meta) return;
+
+    const mmsi = String(meta.MMSI || meta.MMSI_String || '');
+    if (!gemiler[mmsi]) return;
+
+    const hedef = (msg.Destination || '').trim().toUpperCase();
+    const shipTypeCode = msg.Type || 0;
+    const tipAdi = shipTipAdi(shipTypeCode);
+
+    gemiler[mmsi].imo = msg.ImoNumber ? String(msg.ImoNumber) : '-';
+    gemiler[mmsi].ad = (msg.Name || '').trim() || gemiler[mmsi].ad;
+    gemiler[mmsi].hedef = hedef || '-';
+    gemiler[mmsi].bayrak = bayrakEmoji(msg.CountryCode || '');
+    gemiler[mmsi].tip = tipAdi;
+    gemiler[mmsi].shipTypeCode = shipTypeCode;
+    gemiler[mmsi].dwt = msg.Draught ? `${msg.Draught}m` : '-';
+
+    // Gemi tipi filtresi
+    const seciliTip = document.getElementById('gemiTipi').value;
+    if (seciliTip === 'bulk' && !(shipTypeCode >= 70 && shipTypeCode <= 79)) {
+      delete gemiler[mmsi]; return;
+    }
+    if (seciliTip === 'tanker' && !(shipTypeCode >= 80 && shipTypeCode <= 89)) {
+      delete gemiler[mmsi]; return;
+    }
+
+    // Rotada mı kontrol et
+    if (hedef) {
+      gemiler[mmsi].rotada = rotaKontrol(hedef, rotaHedef.varis);
+    }
+
+    listeGuncelle();
+  }
+}
+
+function guzergahBul(cikis, varis) {
+  // Yaygın güzergahlar için ara bölgeler
+  const araBoxlar = [];
+  const cift = `${cikis}-${varis}`;
+
+  // Türkiye ↔ Körfez (Süveyş / Kızıldeniz güzergahı)
+  if (['TR-AE','TR-SA','TR-KW','TR-QA','TR-OM','TR-IR','TR-IQ',
+       'AE-TR','SA-TR','KW-TR','QA-TR'].includes(cift)) {
+    araBoxlar.push([[10.0,32.0],[32.0,44.0]]); // Kızıldeniz
+    araBoxlar.push([[10.0,44.0],[25.0,60.0]]); // Arabistan Denizi / Körfez
+  }
+  // Avrupa ↔ Körfez
+  if (['DE-AE','NL-AE','GB-AE','IT-AE','GR-AE','FR-AE','ES-AE',
+       'AE-DE','AE-NL','AE-GB','AE-IT','AE-GR'].includes(cift) ||
+      cikis === 'CN' && ['AE','SA','KW','QA'].includes(varis) ||
+      varis === 'CN' && ['AE','SA','KW','QA'].includes(cikis)) {
+    araBoxlar.push([[10.0,32.0],[30.0,44.0]]); // Kızıldeniz
+    araBoxlar.push([[0.0,44.0],[25.0,65.0]]);  // Arabistan Denizi
+  }
+  // Asya ↔ Körfez (Hint Okyanusu)
+  if (['SG-AE','IN-AE','MY-AE','ID-AE','CN-AE','JP-AE','KR-AE',
+       'AE-SG','AE-IN','AE-MY','AE-CN'].includes(cift)) {
+    araBoxlar.push([[-5.0,55.0],[20.0,80.0]]); // Hint Okyanusu
+    araBoxlar.push([[5.0,50.0],[25.0,65.0]]);   // Arabistan Denizi
+  }
+  // Süveyş Kanalı geçişi
+  if (cikis === 'EG' || varis === 'EG') {
+    araBoxlar.push([[25.0,30.0],[33.0,37.0]]); // Süveyş
+  }
+
+  return araBoxlar;
+}
+
+function rotaKontrol(hedef, varisKod) {
+  if (!hedef || hedef === '-') return false;
+  const keywords = VARIS_KEYWORDS[varisKod] || [varisKod];
+  return keywords.some(k => hedef.includes(k));
+}
+
+function listeGuncelle() {
+  const tumGemiler = Object.values(gemiler);
+  const hareket = tumGemiler.filter(g => g.durum === 'underway').length;
+  const durgun = tumGemiler.filter(g => g.durum === 'moored').length;
+  const rotada = tumGemiler.filter(g => g.rotada).length;
+
+  document.getElementById('toplamSayi').textContent = tumGemiler.length;
+  document.getElementById('hareketSayi').textContent = hareket;
+  document.getElementById('durgunSayi').textContent = durgun;
+  document.getElementById('rotadaSayi').textContent = rotada;
+  document.getElementById('connCount').textContent = tumGemiler.length;
+  document.getElementById('guncellemeZamani').textContent = new Date().toLocaleTimeString('tr-TR');
+
+  let gosterilen = tumGemiler;
+  if (aktifFiltre === 'underway') gosterilen = tumGemiler.filter(g => g.durum === 'underway');
+  else if (aktifFiltre === 'moored') gosterilen = tumGemiler.filter(g => g.durum === 'moored');
+  else if (aktifFiltre === 'rotada') gosterilen = tumGemiler.filter(g => g.rotada);
+
+  // Sırala: rotadakiler üste, sonra hıza göre
+  gosterilen.sort((a,b) => {
+    if (b.rotada !== a.rotada) return (b.rotada ? 1 : 0) - (a.rotada ? 1 : 0);
+    return parseFloat(b.hiz) - parseFloat(a.hiz);
+  });
+
+  const liste = document.getElementById('gemiListesi');
+
+  gosterilen.slice(0, 100).forEach(g => {
+    const varEl = document.getElementById('kart_' + g.mmsi);
+    if (varEl) {
+      // Güncelle
+      const hizEl = varEl.querySelector('.hiz-val');
+      const db = varEl.querySelector('.durum-badge');
+      const hedefEl = varEl.querySelector('.hedef-val');
+      if (hizEl) hizEl.textContent = g.hiz + ' knot';
+      if (db) {
+        db.className = 'badge durum-badge ' + (g.durum === 'underway' ? 'badge-move' : 'badge-stop');
+        db.textContent = g.durum === 'underway' ? '⚡ Hareket' : '⚓ Demirli';
+      }
+      if (hedefEl && g.hedef !== '-') hedefEl.textContent = '🏁 ' + g.hedef;
+    } else {
+      // Yeni kart
+      const kart = kartOlustur(g);
+      liste.insertBefore(kart, liste.firstChild);
+      while (liste.children.length > 100) liste.removeChild(liste.lastChild);
+    }
+  });
+
+  if (gosterilen.length === 0 && tumGemiler.length > 0) {
+    liste.innerHTML = '<div class="empty-state"><span class="big">🔍</span>Bu filtre için gemi yok</div>';
+  } else if (tumGemiler.length === 0) {
+    liste.innerHTML = '<div class="empty-state"><span class="big">⏳</span>AIS sinyalleri bekleniyor...<br>İlk gemiler 10-30 saniye içinde gelir</div>';
+  }
+}
+
+function kartOlustur(g) {
+  const kart = document.createElement('div');
+  let cls = 'ship-card';
+  if (g.yeni) cls += ' yeni';
+  if (g.rotada) cls += ' rotada-kart';
+  kart.className = cls;
+  kart.id = 'kart_' + g.mmsi;
+
+  kart.innerHTML = `
+    <div class="ship-top">
+      <div>
+        <div class="ship-name">${g.bayrak} ${g.ad}</div>
+        <div class="ship-mmsi">MMSI: ${g.mmsi}${g.imo !== '-' ? ' · IMO: ' + g.imo : ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${g.yeni ? '<span class="badge badge-new">🆕</span>' : ''}
+        ${g.rotada ? '<span class="badge badge-rotada">🎯 ROTADA</span>' : ''}
+      </div>
+    </div>
+    <div class="ship-meta">
+      <span class="badge badge-bulk">⚙️ ${g.tip || '?'}</span>
+      <span class="badge durum-badge ${g.durum === 'underway' ? 'badge-move' : 'badge-stop'}">${g.durum === 'underway' ? '⚡ Hareket' : '⚓ Demirli'}</span>
+      <span class="badge badge-bulk hiz-val">${g.hiz} kn</span>
+    </div>
+    <div class="route-display">
+      <span class="port">📍 ${g.lat}°, ${g.lon}°</span>
+      <span class="arrow"> → </span>
+      <span class="port hedef-val">🏁 ${g.hedef}</span>
+    </div>
+    <div class="ship-details">
+      <div class="detail-row"><span class="detail-key">🚀 Hız</span><span class="detail-val hiz-val">${g.hiz} knot</span></div>
+      <div class="detail-row"><span class="detail-key">📍 Konum</span><span class="detail-val">${g.lat}°, ${g.lon}°</span></div>
+      <div class="detail-row"><span class="detail-key">🏁 Hedef</span><span class="detail-val">${g.hedef}</span></div>
+      <div class="detail-row"><span class="detail-key">⚓ Tip</span><span class="detail-val">${g.tip}</span></div>
+      <div class="detail-row"><span class="detail-key">🕐 İlk Görülme</span><span class="detail-val">${g.eklenme.toLocaleTimeString('tr-TR')}</span></div>
+      <div class="detail-row"><span class="detail-key">🗺️ Harita</span><span class="detail-val detail-link" onclick="haritaAc('${g.mmsi}')">MarineTraffic →</span></div>
+    </div>
+  `;
+
+  kart.onclick = (e) => {
+    if (e.target.classList.contains('detail-link')) return;
+    if (aktifKart && aktifKart !== kart) aktifKart.classList.remove('expanded');
+    kart.classList.toggle('expanded');
+    aktifKart = kart.classList.contains('expanded') ? kart : null;
+  };
+  return kart;
+}
+
+function filtrele(tip, el) {
+  aktifFiltre = tip;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('gemiListesi').innerHTML = '';
+  listeGuncelle();
+}
+
+function baglantiKes() {
+  if (ws) ws.close();
+  document.getElementById('baglanBtn').style.display = 'block';
+  document.getElementById('kesBtn').style.display = 'none';
+  document.getElementById('connTitle').textContent = 'Bağlantı Kesildi';
+  log('Bağlantı manuel kesildi', 'err');
+}
+
+function haritaAc(mmsi) {
+  window.open(`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${mmsi}`, '_blank');
+}
+
+function shipTipAdi(t) {
+  if (t >= 70 && t <= 79) return 'Bulk Carrier';
+  if (t >= 80 && t <= 89) return 'Tanker';
+  if (t === 70) return 'Kargo';
+  if (t >= 60 && t <= 69) return 'Yolcu';
+  if (t === 30) return 'Balıkçı';
+  if (t >= 40 && t <= 49) return 'HSC';
+  if (t >= 50 && t <= 59) return 'Özel';
+  return t > 0 ? `Tip-${t}` : 'Bilinmiyor';
+}
+
+function bayrakEmoji(cc) {
+  const b = {
+    PA:'🇵🇦',CN:'🇨🇳',HK:'🇭🇰',SG:'🇸🇬',GR:'🇬🇷',MT:'🇲🇹',LR:'🇱🇷',
+    MH:'🇲🇭',CY:'🇨🇾',BS:'🇧🇸',AE:'🇦🇪',TR:'🇹🇷',DE:'🇩🇪',NL:'🇳🇱',
+    GB:'🇬🇧',US:'🇺🇸',JP:'🇯🇵',KR:'🇰🇷',IN:'🇮🇳',IT:'🇮🇹',NO:'🇳🇴',
+    DK:'🇩🇰',VN:'🇻🇳',MY:'🇲🇾',ID:'🇮🇩',PH:'🇵🇭',TH:'🇹🇭',BD:'🇧🇩',
+    PK:'🇵🇰',IR:'🇮🇷',SA:'🇸🇦',KW:'🇰🇼',QA:'🇶🇦',OM:'🇴🇲',EG:'🇪🇬',
+    RU:'🇷🇺',UA:'🇺🇦',FR:'🇫🇷',ES:'🇪🇸',PT:'🇵🇹',BE:'🇧🇪',
+  };
+  return b[cc] || '';
+}
+
+function log(msg, tip = 'info') {
+  const box = document.getElementById('logBox');
+  box.style.display = 'block';
+  const el = document.createElement('div');
+  el.className = 'log-line ' + tip;
+  el.textContent = `[${new Date().toLocaleTimeString('tr-TR')}] ${msg}`;
+  box.insertBefore(el, box.firstChild);
+  if (box.children.length > 20) box.removeChild(box.lastChild);
+}
+</script>
+</body>
+</html>
